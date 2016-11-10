@@ -1,10 +1,14 @@
+import sys
+sys.path.append('./Lib')
+
 import argparse
 import json
 import os
-import sys
 from pathlib import Path
 
 import config
+from manifestlv1 import ManifestLV1
+from depthclient import DepthClient
 
 class EntryPoint:
     def __init__(self):
@@ -20,6 +24,11 @@ class EntryPoint:
             curp = curp.parent
         if config.reporoot == '':
             config.reporoot = os.path.abspath('.')
+        else:
+            if os.path.exists(config.reporoot + os.sep + config.settings['config']):
+                with open(config.reporoot + os.sep + config.settings['config']) as f:
+                    configjson = json.load(f)
+                    config.settings.update(configjson)
 
         parser = argparse.ArgumentParser(prog='Depman', description='Dependency manager')
         subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
@@ -103,7 +112,4 @@ class EntryPoint:
             cli.upload_manifest(f.read())
 
 if __name__ == '__main__':
-    sys.path.append('./Lib')
-    from manifestlv1 import ManifestLV1
-    from depthclient import DepthClient
     EntryPoint()
