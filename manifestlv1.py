@@ -3,6 +3,7 @@ import hashlib
 import pathspec
 
 import config
+from snapshot import Snapshot
 
 def get_file_hash(path):
     hasher = hashlib.sha1()
@@ -13,7 +14,7 @@ def get_file_hash(path):
 
 
 class FileEntryLV1:
-    def __init__(self, p, h = None):
+    def __init__(self, p, h=None):
         self.path = p
         if(h == None):
             self.hash = get_file_hash(config.reporoot + os.sep + p)
@@ -33,12 +34,12 @@ class FileEntryLV1:
         return self.path > value.path
 
 
-class ManifestLV1:
+class ManifestLV1(Snapshot):
     def __init__(self):
         self.version = -1
         self.format = 'LV1'
         self.list = []
-    
+
     def get_upload_dict(self):
         res = dict()
         for f in self.list:
@@ -49,7 +50,7 @@ class ManifestLV1:
         tempfile = FileEntryLV1(path, '')
         return tempfile in self.list
 
-    def walk_subdirectory(self, subpath, ignorerules = []):
+    def walk_subdirectory(self, subpath, ignorerules=[]):
         res = []
         spec = pathspec.PathSpec.from_lines(pathspec.patterns.GitWildMatchPattern, ignorerules)
 
@@ -67,7 +68,7 @@ class ManifestLV1:
             res.extend(fileentries)
         self.list = res
 
-    def add_file(self, subpath, ignorerules = []):
+    def add_file(self, subpath, ignorerules=[]):
         filepath = os.path.abspath(subpath)
         h = len(config.reporoot)
         if os.path.isfile(filepath):
@@ -77,7 +78,7 @@ class ManifestLV1:
             self.list = sorted(self.list)
             return
 
-    def add_subdirectory(self, subpath, ignorerules = []):
+    def add_subdirectory(self, subpath, ignorerules=[]):
         res = []
         spec = pathspec.PathSpec.from_lines(pathspec.patterns.GitWildMatchPattern, ignorerules)
 
@@ -112,10 +113,69 @@ class ManifestLV1:
             parts = ln.split(' ')
             self.list.append(FileEntryLV1(parts[0], parts[1]))
 
+    def gen_cache(self):
+        self.cache = {}
+        for x in self.list:
+            components = x.path.split('/')
+            curr = self.cache
+            for comp in components[:-1]:
+                if comp not in curr:
+                    curr[comp] = dict()
+                curr = curr[comp]
+            curr[components[-1]] = x.hash
 
-#dd = ManifestLV1()
-#dd.walk_subdirectory('requests')
-#print(dd.dumps())
+    def listdir(self, path):
+        path = os.path.normpath(path)
+        components = path.split(os.sep)
+        if path == '.':
+            return [s for s in self.cache]
+        curr = self.cache
+        for x in components:
+            curr = curr[x]
+        assert isinstance(curr, dict)
+        return [s for s in curr]
 
-#ff = FileEntry('.git')
-#print(json.dumps(ff.__dict__))
+    def get_hash(self, path):
+        path = os.path.normpath(path)
+        components = path.split(os.sep)
+        curr = self.cache
+        for x in components:
+            curr = curr[x]
+        assert isinstance(curr, str)
+        return curr
+
+    def is_dir(self, path):
+        path = os.path.normpath(path)
+        components = path.split(os.sep)
+        curr = self.cache
+        for x in components:
+            curr = curr[x]
+        if type(curr) is dict:
+            return True
+        else:
+            return False
+
+
+def test():
+    dd = ManifestLV1()
+    config.reporoot = 'E:\\Dev\\constructfield\\DependencyMan'
+    dd.walk_subdirectory('.')
+    print(dd.dumps())
+    dd.gen_cache()
+    print(dd.listdir(''))
+    print(dd.listdir('Lib'))
+    print(dd.is_dir('Lib'))
+    print(dd.get_hash('Lib\\requests\\__init__.py'))
+    print(dd.is_dir('Lib\\requests\\__init__.py'))
+    from snapshot import OSSnapshot, SnapshotDirCmp
+    b = OSSnapshot('E:\Dev\constructfield')
+    dircmp = SnapshotDirCmp('', dd, '', b)
+    print("Succeed")
+    print(dircmp.subdirs)
+    for x in dircmp.subdirs:
+        print(dircmp.subdirs[x].common_files)
+        print(dircmp.subdirs[x].same_files)
+        print(dircmp.subdirs[x].common_dirs)
+
+if __name__ == "__main__":
+    test()

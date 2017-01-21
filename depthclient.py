@@ -11,6 +11,7 @@ class DepthClient:
         m = hashlib.md5()
         m.update(config.settings['password'].encode('utf-8'))
         self.cred = (config.settings['username'], m.hexdigest())
+        print(self.cred)
 
     def get_server_file_list(self):
         r = requests.get(self.server + 'file')

@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 
 import config
+from snapshot import OSSnapshot
+from snapshot import SnapshotDirCmp
 from manifestlv1 import ManifestLV1
 from depthclient import DepthClient
 
@@ -72,7 +74,22 @@ class EntryPoint:
                 f.write(cli.fetch_manifest(nvsn))
 
     def diff(self, args):
-        pass
+        m = ManifestLV1()
+        with open(config.reporoot + os.sep + config.settings['manifest'], mode='r') as f:
+            m.loads(f.read())
+        m.gen_cache()
+        b = OSSnapshot(config.reporoot)
+        dircmp = SnapshotDirCmp('', m, '', b)
+        def handle_dircmp(dircmp, pathprefix):
+            for x in dircmp.diff_files:
+                print('M ' + pathprefix + x)
+            for x in dircmp.left_only:
+                print('- ' + pathprefix + x)
+            for x in dircmp.right_only:
+                print('+ ' + pathprefix + x)
+            for d in dircmp.subdirs:
+                handle_dircmp(dircmp.subdirs[d], pathprefix + d + '/')
+        handle_dircmp(dircmp, '')
 
     def add(self, args):
         ignorelist = []
